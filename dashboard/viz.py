@@ -54,7 +54,7 @@ def category_bar_chart(df: pd.DataFrame, category_col: str, amount_col: str, top
     ).properties(height=280)
     return chart
 
-def merchant_pareto(df: pd.DataFrame, merchant_col: str, amount_col: str, top_n=15):
+def merchant_analysis(df: pd.DataFrame, merchant_col: str, amount_col: str, top_n=15):
     if merchant_col not in df.columns:
         return alt.Chart(pd.DataFrame()).mark_line()
     tmp = df.copy()
@@ -78,25 +78,56 @@ def merchant_pareto(df: pd.DataFrame, merchant_col: str, amount_col: str, top_n=
     chart = alt.layer(bars, line).resolve_scale(y='independent').properties(height=260)
     return chart
 
-def numeric_correlation_heatmap(df: pd.DataFrame, amount_col: str, timestamp_col: str):
-    cols = {}
-    if amount_col in df.columns:
-        cols["amount"] = pd.to_numeric(df[amount_col], errors="coerce")
-    if timestamp_col in df.columns:
-        ts = pd.to_datetime(df[timestamp_col], errors="coerce")
-        cols["hour"] = ts.dt.hour
-        cols["dow"] = ts.dt.weekday
-    if not cols:
-        return alt.Chart(pd.DataFrame()).mark_rect()
-    corr_df = pd.DataFrame(cols).corr().stack().reset_index()
-    corr_df.columns = ["x", "y", "corr"]
-    chart = alt.Chart(corr_df).mark_rect().encode(
-        x=alt.X("x:N", title=""),
-        y=alt.Y("y:N", title=""),
-        color=alt.Color("corr:Q", scale=alt.Scale(scheme="blueorange", domain=[-1,1]), title="Correlation"),
-        tooltip=[alt.Tooltip("x:N"), alt.Tooltip("y:N"), alt.Tooltip("corr:Q", format=".2f")]
-    ).properties(width=250, height=250)
-    return chart
+def numeric_correlation_heatmap(df: pd.DataFrame, timestamp_col: str = None, amount_col: str = None) -> alt.Chart:
+    """Create a correlation heatmap for numeric columns"""
+    try:
+        # Get numeric columns only
+        numeric_df = df.select_dtypes(include=['float64', 'int64']).copy()
+        
+        if timestamp_col and timestamp_col in df.columns:
+            # Add time-based features
+            numeric_df['hour'] = pd.to_datetime(df[timestamp_col]).dt.hour
+            numeric_df['day_of_week'] = pd.to_datetime(df[timestamp_col]).dt.dayofweek
+            numeric_df['day_of_month'] = pd.to_datetime(df[timestamp_col]).dt.day
+
+        # Compute correlation matrix
+        corr_matrix = numeric_df.corr().reset_index().melt('index')
+        corr_matrix.columns = ['var1', 'var2', 'correlation']
+
+        # Create heatmap
+        heatmap = alt.Chart(corr_matrix).mark_rect().encode(
+            x=alt.X('var1:N', title=None),
+            y=alt.Y('var2:N', title=None),
+            color=alt.Color('correlation:Q',
+                          scale=alt.Scale(scheme='blueorange', domain=[-1, 1]),
+                          legend=alt.Legend(title="Correlation")),
+            tooltip=[
+                alt.Tooltip('var1:N', title='Variable 1'),
+                alt.Tooltip('var2:N', title='Variable 2'),
+                alt.Tooltip('correlation:Q', title='Correlation', format='.2f')
+            ]
+        ).properties(
+            width=400,
+            height=300,
+            title="Numeric Correlations"
+        )
+
+        # Add text labels
+        text = heatmap.mark_text(baseline='middle').encode(
+            text=alt.Text('correlation:Q', format='.2f'),
+            color=alt.condition(
+                alt.datum.correlation > 0.5,
+                alt.value('white'),
+                alt.value('black')
+            )
+        )
+
+        return (heatmap + text).configure_axis(
+            labelAngle=45
+        )
+    except Exception as e:
+        st.error(f"Could not generate correlation heatmap: {str(e)}")
+        return alt.Chart().mark_rect()  # Return empty chart instead of None
 
 def time_series_with_anomalies(df: pd.DataFrame, anomalies: pd.DataFrame, timestamp_col: str, amount_col: str):
     base = time_series_chart(df, timestamp_col, amount_col)
@@ -195,10 +226,10 @@ def weekday_hour_heatmap(df: pd.DataFrame, cols: Dict[str, Any]) -> None:
         .encode(
             x=alt.X("hour:O", title="Hour"),
             y=alt.Y("weekday:N", sort=order, title="Weekday"),
-            color=alt.Color("count:Q", title="# Transactions", scale=alt.Scale(scheme="blues")),
+            color=alt.Color("count:Q", title="Transactions", scale=alt.Scale(scheme="blues")),
             tooltip=["weekday:N", "hour:O", alt.Tooltip("count:Q", title="# Txns")],
         )
-        .properties(title="# Transactions", height=320)
+        .properties(title="Transactions", height=320)
     )
     heat_avg = (
         alt.Chart(agg)
@@ -295,7 +326,7 @@ def payment_method_donut(df: pd.DataFrame, cols: Dict[str, Any]) -> None:
     st.altair_chart(chart, use_container_width=True)
 
 
-def merchant_pareto(df: pd.DataFrame, cols: Dict[str, Any]) -> None:
+def merchant_analysis(df: pd.DataFrame, cols: Dict[str, Any]) -> None:
     merch_col = cols.get("merchant") or cols.get("category")
     amt_col = cols.get("amount")
     if not merch_col or not amt_col or merch_col not in df or amt_col not in df:
@@ -310,26 +341,6 @@ def merchant_pareto(df: pd.DataFrame, cols: Dict[str, Any]) -> None:
     bars = base.mark_bar(color="#7C3AED").encode(y=alt.Y(f"{amt_col}:Q", title="Total Amount", axis=alt.Axis(format=",.2f")), tooltip=[alt.Tooltip(f"{merch_col}:N", title="Entity"), alt.Tooltip(f"{amt_col}:Q", title="Total", format=",.2f")])
     # line = base.mark_line(color="#10B981").encode(y=alt.Y("cum_share:Q", axis=alt.Axis(format='%', title="Cumulative Share")))
     st.altair_chart((bars).properties(height=320).interactive(), use_container_width=True)
-
-
-def numeric_correlation_heatmap(df: pd.DataFrame, cols: Dict[str, Any]) -> None:
-    nums = df.select_dtypes(include=['number']).copy()
-    if nums.shape[1] < 2:
-        return
-    corr = nums.corr().stack().reset_index(name='corr')
-    corr.columns = ['x', 'y', 'corr']
-    chart = (
-        alt.Chart(corr)
-        .mark_rect()
-        .encode(
-            x=alt.X('x:O', title=''),
-            y=alt.Y('y:O', title=''),
-            color=alt.Color('corr:Q', scale=alt.Scale(scheme='purpleorange', domain=[-1, 1]), title='Correlation'),
-            tooltip=['x:O', 'y:O', alt.Tooltip('corr:Q', format='.2f')],
-        )
-        .properties(height=350)
-    )
-    st.altair_chart(chart, use_container_width=True)
 
 
 def monthly_seasonality(df: pd.DataFrame, cols: Dict[str, Any]) -> None:

@@ -30,7 +30,6 @@ def fun_header(title: str) -> None:
     st.markdown(
         f"""
         <div style="display:flex;align-items:center;gap:12px;">
-            <div style="font-size:32px">💫</div>
             <h1 style="margin:0">{title}</h1>
         </div>
         """,
@@ -183,7 +182,7 @@ def render_dashboard(df, inferred_cols: Dict[str, str], run_anomaly_fn):
     with col_right:
         st.subheader("Merchant Pareto")
         st.caption("Top merchants by amount. Cumulative line shows concentration.")
-        pareto = viz.merchant_pareto(filtered, merchant_col=inferred_cols.get("merchant"), amount_col=inferred_cols.get("amount"))
+        pareto = viz.merchant_analysis(filtered, merchant_col=inferred_cols.get("merchant"), amount_col=inferred_cols.get("amount"))
         st.altair_chart(pareto, use_container_width=True)
 
         st.subheader("Correlation (numeric)")

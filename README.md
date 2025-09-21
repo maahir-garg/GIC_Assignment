@@ -21,13 +21,12 @@ This dashboard provides comprehensive analysis and visualization of financial tr
 - Weekday-hour activity heatmaps
 - Amount distribution analysis
 - Merchant analysis
-- Correlation matrices
 
 ### Advanced Analytics
 - Anomaly detection using IsolationForest
 - Configurable detection parameters
 - Interactive data filtering
-- AI-powered insight chatbot
+- Chatbot
 
 ## Installation
 
@@ -71,7 +70,7 @@ The system automatically maps common column names:
 - Minimum of 10 transactions required for anomaly detection
 - Supports both positive and negative transaction amounts
 - Auto-handles missing values and data type conversion
-- Built with Streamlit, Pandas, and Scikit-learn
+- Built with Streamlit and Pandas
 
 ## Performance Considerations
 - Optimized for datasets up to 100,000 rows

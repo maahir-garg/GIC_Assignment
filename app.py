@@ -13,7 +13,7 @@ from dashboard.viz import (
     amount_distribution_section,
     stacked_daily_by_type,
     payment_method_donut,
-    merchant_pareto,
+    merchant_analysis,
     numeric_correlation_heatmap,
     monthly_seasonality,
         inflow_outflow_monthly,
@@ -23,7 +23,7 @@ from dashboard.ui import inject_css, sidebar_filters, fun_header
 from dashboard.chatbot import InsightBot
 
 
-APP_TITLE = "GIC Transaction Galaxy ✨"
+APP_TITLE = "GIC Transaction Galaxy"
 DEFAULT_CSV_PATH = str(Path(__file__).resolve().parent / "financial_transactions.csv")
 
 
@@ -58,37 +58,66 @@ def main() -> None:
     kpi_cards(kpis)
 
     # Tabs for visualizations and anomalies
-    tabs = st.tabs(["Visualizations", "Data", "Anomalies", "Chatbot 🤖"])
+    tabs = st.tabs(["Visualizations", "Data", "Anomalies", "Chatbot"])
 
     with tabs[0]:
         st.markdown("### Visual Explorations")
+        
+        st.info("📈 Time Series Analysis: Shows transaction patterns over time. Helps identify seasonal trends, unusual spikes, and overall volume changes.")
         time_series_chart(filtered_df, cols)
+        
         col1, col2 = st.columns(2)
         with col1:
+            st.info("📊 Category Distribution: Displays spending across different categories. Useful for understanding where money is being allocated.")
             category_bar_chart(filtered_df, cols)
         with col2:
+            st.info("🕒 Activity Heatmap: Shows transaction frequency by weekday and hour. Helps identify peak activity periods and patterns.")
             weekday_hour_heatmap(filtered_df, cols)
+            
+        st.info("📉 Amount Distribution: Visualizes the spread of transaction amounts. Helps identify typical transaction ranges and outliers.")
         amount_distribution_section(filtered_df, cols)
+        
+        st.info("📋 Daily Transaction Types: Shows how different transaction types stack up each day. Useful for understanding daily composition of transactions.")
         stacked_daily_by_type(filtered_df, cols)
+        
         col3, col4 = st.columns(2)
         with col3:
+            st.info("💳 Payment Methods: Breaks down transactions by payment type. Helps understand preferred payment methods.")
             payment_method_donut(filtered_df, cols)
         with col4:
-            merchant_pareto(filtered_df, cols)
-        numeric_correlation_heatmap(filtered_df, cols)
+            st.info("🏪 Merchant Analysis: Shows transaction distribution across merchants. Identifies key merchant relationships.")
+            merchant_analysis(filtered_df, cols)
+            
+        st.info("📅 Monthly Patterns: Displays seasonal patterns in transaction activity. Useful for identifying recurring trends.")
         monthly_seasonality(filtered_df, cols)
+        
+        st.info("💰 Cash Flow Analysis: Shows monthly inflows and outflows. Helps track net transaction flow over time.")
         inflow_outflow_monthly(filtered_df, cols)
+        
+        st.info("💸 Average Transaction Size: Displays average transaction amounts by merchant. Helps identify high-value relationships.")
         avg_ticket_by_merchant(filtered_df, cols)
 
     with tabs[1]:
         st.markdown("### Data Preview & Export")
+        st.info("📋 Raw Data View: Examine individual transactions and export filtered results for further analysis.")
         st.dataframe(filtered_df.head(500), use_container_width=True)
         csv_bytes = filtered_df.to_csv(index=False).encode("utf-8")
         st.download_button("Download filtered CSV", data=csv_bytes, file_name="filtered_transactions.csv", mime="text/csv")
 
     with tabs[2]:
         st.markdown("### Outlier Detection")
-        st.caption("Anomalies are transactions that deviate strongly from typical patterns. We compute features amount, log(amount), day-of-week, and hour, then score each transaction.")
+        st.info("""
+        🔍 Anomaly Detection Tools
+        
+        This feature helps identify unusual transactions using two methods:
+        1. Isolation Forest: Machine learning approach that isolates outliers through random partitioning
+        2. Z-Score Method: Statistical approach that flags values far from the mean
+        
+        Use this to:
+        - Find potentially fraudulent transactions
+        - Identify data entry errors
+        - Spot unusual spending patterns
+        """)
         method = st.selectbox("Method", ["Isolation Forest", "Z-Score"], index=0, help="Choose algorithm for anomaly detection")
         with st.expander("Configure anomaly detection", expanded=False):
             contamination = st.slider("Expected proportion of anomalies", min_value=0.01, max_value=0.20, value=0.05, step=0.01)
@@ -122,9 +151,25 @@ def main() -> None:
 
     with tabs[3]:
         st.markdown("### Insight Chatbot")
-        st.caption("The bot answers using the currently FILTERED data, so adjust filters first for targeted insights.")
+        st.info("""
+        🤖 Interactive Analysis Assistant
+        
+        Available Commands:
+        - 'total': Get total transaction amount
+        - 'average': View average transaction metrics
+        - 'top': See top categories/merchants
+        - 'trend': Analyze transaction trends
+        - 'peak': Find peak transaction times
+        - 'summary': Get comprehensive analysis
+        - 'help': Show all available commands
+        
+        Tips:
+        - Use filters first to analyze specific data segments
+        - Be specific in your questions
+        - Try combining commands with time periods
+        """)
         bot = InsightBot(filtered_df, cols)
-        user_query = st.chat_input("Ask about the data: e.g., 'top categories last month', 'total spend', 'peak hour?' ")
+        user_query = st.chat_input("Type help to undesrstand commands")
         if user_query:
             for role, content in bot.ask(user_query):
                 st.chat_message(role).write(content)

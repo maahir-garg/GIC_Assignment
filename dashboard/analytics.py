@@ -49,7 +49,6 @@ def detect_anomalies(
 
     work = df.dropna(subset=[amount_col]).copy()
 
-    # Feature engineering: amount, log_amount, day_of_week, hour
     work["amount"] = pd.to_numeric(work[amount_col], errors="coerce").astype(float)
     work["log_amount"] = np.log1p(work["amount"].clip(lower=0))
     if ts_col and ts_col in df:

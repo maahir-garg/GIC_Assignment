@@ -6,80 +6,128 @@ import pandas as pd
 
 
 class InsightBot:
-    def __init__(self, df: pd.DataFrame, cols: Dict[str, Any]):
+    def __init__(self, df: pd.DataFrame, cols: Dict[str, str]):
         self.df = df
         self.cols = cols
+        self.commands = {
+            "total": self._get_total,
+            "average": self._get_average,
+            "top": self._get_top_items,
+            "trend": self._get_trend,
+            "summary": self._get_summary,
+            "peak": self._get_peak_times,
+            "compare": self._compare_periods,
+            "help": self._get_help
+        }
         self.history: list[Tuple[str, str]] = [("assistant", "Ask me about totals, averages, peaks, payment methods, anomalies, or trends.")]
 
     def ask(self, query: str) -> Iterable[Tuple[str, str]]:
+        """Process user query and return responses"""
+        query = query.lower().strip()
         self.history.append(("user", query))
-        response = self._answer(query)
+
+        try:
+            # Handle help request
+            if "help" in query or "?" in query:
+                response = self._get_help()
+            # Process specific analysis requests
+            elif "total" in query:
+                response = self._get_total()
+            elif "average" in query:
+                response = self._get_average()
+            elif "top" in query:
+                n = 5  # default
+                response = self._get_top_items(n)
+            elif "trend" in query:
+                response = self._get_trend()
+            elif "compare" in query:
+                response = self._compare_periods()
+            elif "peak" in query:
+                response = self._get_peak_times()
+            elif "summary" in query:
+                response = self._get_summary()
+            else:
+                response = "I can help you analyze your financial data. Try asking about:\n" + self._get_help()
+        except Exception as e:
+            response = f"I encountered an error: {str(e)}\nTry asking for 'help' to see available commands."
+
         self.history.append(("assistant", response))
         return self.history[-2:]
 
-    def _answer(self, query: str) -> str:
-        q = query.lower().strip()
-        amount_col = self.cols.get("amount")
-        ts_col = self.cols.get("timestamp")
-        cat_col = self.cols.get("category") or self.cols.get("merchant")
+    def _get_total(self) -> str:
+        """Calculate total transaction amount"""
+        if self.cols.get("amount") in self.df.columns:
+            total = self.df[self.cols["amount"]].sum()
+            return f"Total transaction amount: {total:,.2f}"
+        return "Could not find amount column in the data."
 
-        if not amount_col or amount_col not in self.df:
-            return "I need an 'amount' column to compute insights."
+    def _get_average(self) -> str:
+        """Calculate average transaction amount"""
+        if self.cols.get("amount") in self.df.columns:
+            avg = self.df[self.cols["amount"]].mean()
+            median = self.df[self.cols["amount"]].median()
+            return f"Average transaction: {avg:,.2f}\nMedian transaction: {median:,.2f}"
+        return "Could not find amount column in the data."
 
-        df = self.df
+    def _get_top_items(self, n: int = 5) -> str:
+        """Get top categories/merchants by transaction volume"""
+        if self.cols.get("category") in self.df.columns:
+            top_cats = self.df.groupby(self.cols["category"])[self.cols["amount"]].sum()
+            top_cats = top_cats.sort_values(ascending=False).head(n)
+            result = "Top categories by volume:\n"
+            for cat, amount in top_cats.items():
+                result += f"- {cat}: {amount:,.2f}\n"
+            return result
+        return "Could not find category information in the data."
 
-        # Totals / averages
-        if any(k in q for k in ["total", "sum"]):
-            total = pd.to_numeric(df[amount_col], errors="coerce").sum()
-            return f"Total amount is {total:,.2f}."
-        if any(k in q for k in ["average", "avg", "mean"]):
-            avg = pd.to_numeric(df[amount_col], errors="coerce").mean()
-            return f"Average amount is {avg:,.2f}."
+    def _get_trend(self) -> str:
+        """Analyze transaction trends"""
+        if self.cols.get("timestamp") in self.df.columns:
+            monthly = self.df.set_index(self.cols["timestamp"]).resample('M')[self.cols["amount"]].sum()
+            trend = "increasing" if monthly.iloc[-1] > monthly.iloc[0] else "decreasing"
+            return f"Transaction volume is {trend}. Last month: {monthly.iloc[-1]:,.2f}, First month: {monthly.iloc[0]:,.2f}"
+        return "Could not analyze trends - missing timestamp information."
 
-        # Peak day
-        if any(k in q for k in ["peak", "max"]) and ts_col and ts_col in df:
-            temp = df.dropna(subset=[ts_col]).copy()
-            temp["date"] = pd.to_datetime(temp[ts_col]).dt.date
-            daily = temp.groupby("date")[amount_col].sum()
-            if not daily.empty:
-                day = daily.idxmax()
-                val = daily.max()
-                return f"Peak day is {day} with {val:,.2f}."
+    def _get_peak_times(self) -> str:
+        """Find peak transaction times"""
+        if self.cols.get("timestamp") in self.df.columns:
+            df = self.df.copy()
+            df['hour'] = pd.to_datetime(df[self.cols["timestamp"]]).dt.hour
+            df['day'] = pd.to_datetime(df[self.cols["timestamp"]]).dt.day_name()
+            peak_hour = df.groupby('hour')[self.cols["amount"]].sum().idxmax()
+            peak_day = df.groupby('day')[self.cols["amount"]].sum().idxmax()
+            return f"Peak transaction day: {peak_day}\nPeak transaction hour: {peak_hour}:00"
+        return "Could not determine peak times - missing timestamp information."
 
-        # Top categories/merchants
-        if cat_col and cat_col in df and any(k in q for k in ["top", "category", "merchant"]):
-            agg = df.groupby(cat_col)[amount_col].sum().sort_values(ascending=False).head(5)
-            items = ", ".join([f"{k}: {v:,.2f}" for k, v in agg.items()])
-            return f"Top {cat_col}: {items}."
+    def _get_summary(self) -> str:
+        """Provide a comprehensive summary"""
+        summary = []
+        summary.append(self._get_total())
+        summary.append(self._get_average())
+        summary.append(self._get_trend())
+        return "\n\n".join(summary)
 
-        # Payment methods
-        pm_col = self.cols.get("payment_method")
-        if pm_col and pm_col in df and any(k in q for k in ["payment", "method", "card"]):
-            agg = df.groupby(pm_col)[amount_col].sum()
-            total = float(agg.sum()) or 1.0
-            shares = (agg / total).sort_values(ascending=False).head(5)
-            items = ", ".join([f"{k}: {v:.1%}" for k, v in shares.items()])
-            return f"Payment method share: {items}."
+    def _compare_periods(self) -> str:
+        """Compare current period with previous"""
+        if self.cols.get("timestamp") in self.df.columns:
+            df = self.df.copy()
+            df['month'] = pd.to_datetime(df[self.cols["timestamp"]]).dt.to_period('M')
+            current = df[df['month'] == df['month'].max()][self.cols["amount"]].sum()
+            previous = df[df['month'] == df['month'].max() - 1][self.cols["amount"]].sum()
+            change = ((current - previous) / previous) * 100
+            return f"Current period: {current:,.2f}\nPrevious period: {previous:,.2f}\nChange: {change:.1f}%"
+        return "Could not compare periods - missing timestamp information."
 
-        # Trend (month)
-        if any(k in q for k in ["trend", "month", "season"]):
-            if ts_col and ts_col in df:
-                temp = df.dropna(subset=[ts_col]).copy()
-                ts = pd.to_datetime(temp[ts_col], errors="coerce")
-                temp["month"] = ts.dt.to_period('M').astype(str)
-                series = temp.groupby("month")[amount_col].sum().sort_index()
-                if len(series) >= 2:
-                    first, last = float(series.iloc[0]), float(series.iloc[-1])
-                    change = (last - first) / (abs(first) if first else 1.0)
-                    direction = "up" if last >= first else "down"
-                    return f"Monthly total moved {direction} {change:.1%} from {series.index[0]} to {series.index[-1]}."
-
-        # Explain anomalies
-        if "anomal" in q or "outlier" in q:
-            return (
-                "We flag anomalies using either Isolation Forest or Z-Score. Isolation Forest isolates points via random splits; points isolated with fewer splits are anomalies. Z-Score flags points beyond 3 standard deviations from the mean. Use filters to narrow context and re-run detection."
-            )
-
-        return "Try: 'top merchants', 'payment method share', 'monthly trend', or 'explain anomalies'."
+    def _get_help(self) -> str:
+        """Return help text with available commands"""
+        return """Available commands:
+- total: Get total transaction amount
+- average: Get average and median transaction amounts
+- top: View top categories by volume
+- trend: Analyze transaction trends
+- peak: Find peak transaction times
+- summary: Get comprehensive analysis
+- compare: Compare current with previous period
+- help: Show this help message"""
 
 
