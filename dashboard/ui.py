@@ -11,91 +11,126 @@ def inject_css() -> None:
     st.markdown(
         """
         <style>
-        /* Neon vibes */
-        .stApp {background: radial-gradient(1000px 600px at 10% 10%, #0d0b1a, #0a0a0a);} 
-        h1, h2, h3, h4, h5 {text-shadow: 0 0 10px rgba(123,97,255,0.3);} 
-        .metric {backdrop-filter: blur(10px);} 
-        .stMetric {border-radius: 12px; padding: 8px 12px; background: rgba(255,255,255,0.05);} 
-        .block-container {padding-top: 1.5rem;} 
-        .sidebar .sidebar-content {background: rgba(255,255,255,0.02);} 
-        .css-1v0mbdj, .st-emotion-cache {backdrop-filter: blur(8px);} 
+        .stApp {
+            background: radial-gradient(1000px 600px at 10% 10%, #0d0b1a, #0a0a0a);
+        }
+        h1, h2, h3, h4, h5 {
+            text-shadow: 0 0 10px rgba(123,97,255,0.3);
+        }
+        .metric {
+            backdrop-filter: blur(10px);
+        }
+        .stMetric {
+            border-radius: 12px;
+            padding: 8px 12px;
+            background: rgba(255,255,255,0.05);
+        }
+        .block-container {
+            padding-top: 1.5rem;
+        }
+        .sidebar .sidebar-content {
+            background: rgba(255,255,255,0.02);
+        }
+        .css-1v0mbdj, .st-emotion-cache {
+            backdrop-filter: blur(8px);
+        }
         </style>
         """,
-        unsafe_allow_html=True,
+        unsafe_allow_html=True
     )
 
 
 def fun_header(title: str) -> None:
-    st.markdown(
-        f"""
-        <div style="display:flex;align-items:center;gap:12px;">
-            <h1 style="margin:0">{title}</h1>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.markdown(f"# {title}")
 
 
 def sidebar_filters(df: pd.DataFrame, cols: Dict[str, Any]) -> Dict[str, Any]:
-    filters: Dict[str, Any] = {}
-    ts_col = cols.get("timestamp")
-    amt_col = cols.get("amount")
+    filters = {}
+    
+    st.sidebar.subheader("Filter Transactions")
 
-    st.subheader("Filters")
-
-    # Generate a unique prefix for all keys in this instance
-    key_prefix = f"filter_{id(df)}"  # Use object id to ensure uniqueness
-
-    if ts_col and ts_col in df:
-        ts = pd.to_datetime(df[ts_col], errors="coerce").dropna()
-        if not ts.empty:
-            min_date = ts.min().date()
-            max_date = ts.max().date()
-            dr = st.date_input(
-                "Date Range",
-                value=(min_date, max_date),
-                key=f"{key_prefix}_date_range"
-            )
-            if isinstance(dr, tuple) or isinstance(dr, list):
-                if len(dr) == 2:
-                    filters["date_range"] = (dr[0], dr[1])
-            else:
-                filters["date_range"] = (min_date, max_date)
-
-    if amt_col and amt_col in df:
-        vals = pd.to_numeric(df[amt_col], errors="coerce").dropna()
-        if not vals.empty:
-            min_v, max_v = float(vals.min()), float(vals.max())
-            filters["min_amount"], filters["max_amount"] = st.slider(
-                "Amount Range",
-                min_value=min_v,
-                max_value=max_v,
-                value=(min_v, max_v),
-                key=f"{key_prefix}_amount_range"
-            )
-
-    for cat_col in [
-        c for c in [
-            cols.get("category"),
-            cols.get("merchant"),
-            cols.get("payment_method"),
-            cols.get("account_type"),
-            cols.get("transaction_type"),
-        ] if c and c in df
-    ]:
-        choices = sorted([str(x) for x in df[cat_col].dropna().unique()])
-        filters[f"sel_{cat_col}"] = st.multiselect(
-            f"{cat_col.title()}", 
-            choices,
-            key=f"{key_prefix}_{cat_col}"
+    # Date Range Filter
+    if cols.get('timestamp') in df.columns:
+        dates = pd.to_datetime(df[cols['timestamp']])
+        min_date = dates.min().date()
+        max_date = dates.max().date()
+        
+        date_range = st.sidebar.date_input(
+            "Date Range",
+            value=(min_date, max_date),
+            min_value=min_date,
+            max_value=max_date,
+            key="date_filter"
         )
+        if isinstance(date_range, tuple):
+            filters['date_range'] = date_range
 
-    desc_col = cols.get("description")
-    if desc_col and desc_col in df:
-        filters["text_search"] = st.text_input(
-            "Search description contains",
-            key=f"{key_prefix}_description"
+    # Amount Range Filter
+    if cols.get('amount') in df.columns:
+        amounts = pd.to_numeric(df[cols['amount']], errors='coerce').dropna()
+        min_amt, max_amt = float(amounts.min()), float(amounts.max())
+        
+        amount_range = st.sidebar.slider(
+            "Amount Range",
+            min_value=min_amt,
+            max_value=max_amt,
+            value=(min_amt, max_amt),
+            key="amount_filter"
         )
+        filters['amount_range'] = amount_range
+
+    # Category Filter
+    if cols.get('category') in df.columns:
+        all_categories = sorted(df[cols['category']].dropna().unique().tolist())
+        selected_cats = st.sidebar.multiselect(
+            "Categories",
+            options=all_categories,
+            key="category_filter"
+        )
+        if selected_cats:
+            filters['categories'] = selected_cats
+
+    # Transaction Type Filter
+    if cols.get('transaction_type') in df.columns:
+        all_types = sorted(df[cols['transaction_type']].dropna().unique().tolist())
+        selected_types = st.sidebar.multiselect(
+            "Transaction Types",
+            options=all_types,
+            key="type_filter"
+        )
+        if selected_types:
+            filters['transaction_types'] = selected_types
+
+    # Payment Method Filter
+    if cols.get('payment_method') in df.columns:
+        all_methods = sorted(df[cols['payment_method']].dropna().unique().tolist())
+        selected_methods = st.sidebar.multiselect(
+            "Payment Methods",
+            options=all_methods,
+            key="payment_filter"
+        )
+        if selected_methods:
+            filters['payment_methods'] = selected_methods
+
+    # Merchant Filter
+    if cols.get('merchant') in df.columns:
+        all_merchants = sorted(df[cols['merchant']].dropna().unique().tolist())
+        selected_merchants = st.sidebar.multiselect(
+            "Merchants",
+            options=all_merchants,
+            key="merchant_filter"
+        )
+        if selected_merchants:
+            filters['merchants'] = selected_merchants
+
+    # Text Search
+    st.sidebar.markdown("---")
+    search_text = st.sidebar.text_input(
+        "Search Description",
+        key="text_filter"
+    )
+    if search_text:
+        filters['text_search'] = search_text
 
     return filters
 
@@ -226,5 +261,4 @@ def render_dashboard(df, inferred_cols: Dict[str, str], run_anomaly_fn):
         - Correlation: helps find relationships (e.g., higher amounts at certain hours).
         - Anomalies: unsupervised flags. Investigate raw rows before labeling as fraud.
         """)
-
 

@@ -210,43 +210,55 @@ def weekday_hour_heatmap(df: pd.DataFrame, cols: Dict[str, Any]) -> None:
     if not ts_col or not amt_col or ts_col not in df or amt_col not in df:
         st.info("Heatmap not available: missing timestamp or amount column.")
         return
-    data = df.dropna(subset=[ts_col, amt_col]).copy()
-    ts = pd.to_datetime(data[ts_col], errors="coerce")
-    data["weekday"] = ts.dt.day_name()
-    data["hour"] = ts.dt.hour
-    # Dual heatmaps: counts and average amount
-    cnt = data.groupby(["weekday", "hour"], as_index=False).size().rename(columns={"size": "count"})
-    amt = data.groupby(["weekday", "hour"], as_index=False)[amt_col].mean().rename(columns={amt_col: "avg_amount"})
-    agg = pd.merge(cnt, amt, on=["weekday", "hour"], how="outer").fillna(0)
-    order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-
-    heat_count = (
-        alt.Chart(agg)
-        .mark_rect()
-        .encode(
-            x=alt.X("hour:O", title="Hour"),
-            y=alt.Y("weekday:N", sort=order, title="Weekday"),
-            color=alt.Color("count:Q", title="Transactions", scale=alt.Scale(scheme="blues")),
-            tooltip=["weekday:N", "hour:O", alt.Tooltip("count:Q", title="# Txns")],
-        )
-        .properties(title="Transactions", height=320)
+    # Create a copy to avoid modifying original
+    data = df.copy()
+    
+    # Convert timestamp to proper format
+    data['timestamp'] = pd.to_datetime(data[cols['timestamp']])
+    
+    # Add weekday and week number columns
+    data['weekday'] = data['timestamp'].dt.day_name()
+    data['week'] = data['timestamp'].dt.isocalendar().week
+    
+    # Ensure proper weekday ordering
+    weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    data['weekday'] = pd.Categorical(data['weekday'], categories=weekday_order, ordered=True)
+    
+    # Create the count aggregation by weekday
+    daily_counts = (data.groupby(['week', 'weekday'], observed=True)
+                   .size()
+                   .reset_index()
+                   .rename(columns={0: 'count'}))
+    
+    # Create heatmap
+    heatmap = alt.Chart(daily_counts).mark_rect().encode(
+        x=alt.X('week:O',
+                title='Week of Year',
+                axis=alt.Axis(labelAngle=0)),
+        y=alt.Y('weekday:O',
+                title='Day of Week',
+                sort=weekday_order),
+        color=alt.Color('count:Q',
+                       scale=alt.Scale(scheme='viridis'),
+                       title='Transaction Count'),
+        tooltip=[
+            alt.Tooltip('weekday:N', title='Day'),
+            alt.Tooltip('week:O', title='Week'),
+            alt.Tooltip('count:Q', title='Transactions')
+        ]
+    ).properties(
+        width=600,
+        height=250,
+        title={
+            'text': 'Weekly Activity Pattern',
+            'subtitle': 'Transaction volume by day of week across weeks'
+        }
+    ).configure_axis(
+        labelFontSize=11,
+        titleFontSize=13
     )
-    heat_avg = (
-        alt.Chart(agg)
-        .mark_rect()
-        .encode(
-            x=alt.X("hour:O", title="Hour"),
-            y=alt.Y("weekday:N", sort=order, title="Weekday"),
-            color=alt.Color("avg_amount:Q", title="Avg Amount", scale=alt.Scale(scheme="magma")),
-            tooltip=["weekday:N", "hour:O", alt.Tooltip("avg_amount:Q", title="Avg", format=",.2f")],
-        )
-        .properties(title="Average Amount", height=320)
-    )
-    c1, c2 = st.columns(2)
-    with c1:
-        st.altair_chart(heat_count, use_container_width=True)
-    with c2:
-        st.altair_chart(heat_avg, use_container_width=True)
+    
+    st.altair_chart(heatmap, use_container_width=True)
 
 
 def amount_distribution_section(df: pd.DataFrame, cols: Dict[str, Any]) -> None:
@@ -433,5 +445,4 @@ def avg_ticket_by_merchant(df: pd.DataFrame, cols: Dict[str, Any]) -> None:
         .interactive()
     )
     st.altair_chart(chart, use_container_width=True)
-
-
+            

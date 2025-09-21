@@ -60,6 +60,7 @@ def main() -> None:
     # Main navigation
     tabs = st.tabs([
         "📊 Overview & Trends",
+        "📋 Data Preview",
         "🤖 ML Insights",
         "🔍 Anomaly Detection",
         "💬 Chatbot Assistant"
@@ -74,29 +75,27 @@ def main() -> None:
         st.info("Track transaction patterns and seasonal trends over time")
         time_series_chart(filtered_df, cols)
         
-        col1, col2 = st.columns(2)
+        st.info("🕒 Weekly Activity Pattern: Shows transaction frequency by weekday. Helps identify peak activity periods.")
+        weekday_hour_heatmap(filtered_df, cols)
+        
+        st.markdown("### Transaction Breakdown")
+        col1, col2, col3 = st.columns(3)
         with col1:
-            st.markdown("### Category Analysis")
-            st.info("Distribution of transactions across categories")
+            st.info("📊 Category Distribution")
             category_bar_chart(filtered_df, cols)
         with col2:
-            st.info("🕒 Activity Heatmap: Shows transaction frequency by weekday and hour. Helps identify peak activity periods and patterns.")
-            weekday_hour_heatmap(filtered_df, cols)
-            
+            st.info("🏪 Merchant Analysis")
+            merchant_analysis(filtered_df, cols)
+        with col3:
+            st.info("💳 Payment Methods")
+            payment_method_donut(filtered_df, cols)
+
         st.info("📉 Amount Distribution: Visualizes the spread of transaction amounts. Helps identify typical transaction ranges and outliers.")
         amount_distribution_section(filtered_df, cols)
         
         st.info("📋 Daily Transaction Types: Shows how different transaction types stack up each day. Useful for understanding daily composition of transactions.")
         stacked_daily_by_type(filtered_df, cols)
         
-        col3, col4 = st.columns(2)
-        with col3:
-            st.info("💳 Payment Methods: Breaks down transactions by payment type. Helps understand preferred payment methods.")
-            payment_method_donut(filtered_df, cols)
-        with col4:
-            st.info("🏪 Merchant Analysis: Shows transaction distribution across merchants. Identifies key merchant relationships.")
-            merchant_analysis(filtered_df, cols)
-            
         st.info("📅 Monthly Patterns: Displays seasonal patterns in transaction activity. Useful for identifying recurring trends.")
         monthly_seasonality(filtered_df, cols)
         
@@ -107,23 +106,68 @@ def main() -> None:
         avg_ticket_by_merchant(filtered_df, cols)
 
     with tabs[1]:
-        st.markdown("### Machine Learning Insights")
-        st.info("""
-        ML-powered analysis provides:
-        - Future transaction predictions
-        - Pattern detection in historical data
-        - Trend forecasting for next 30 days
-        """)
+        st.markdown("### Data Preview & Export")
+        st.info("Examine and export filtered transaction data")
         
-        if st.toggle("Generate ML Insights", value=False):
-            ml_analytics = TransactionAnalytics()
-            
-            # Trend prediction
-            predictions_df = ml_analytics.predict_trend(filtered_df, cols)
-            st.line_chart(predictions_df.set_index('date')['predicted_amount'])
-            st.caption("Predicted transaction amounts for next 30 days")
+        # Summary statistics
+        st.subheader("Summary Statistics")
+        st.dataframe(filtered_df.describe(), width="stretch")
+        
+        # Data preview
+        st.subheader("Raw Data Preview")
+        st.dataframe(filtered_df, width="stretch")
+        
+        # Export options
+        st.download_button(
+            "📥 Download Filtered Data",
+            data=filtered_df.to_csv(index=False).encode('utf-8'),
+            file_name="filtered_transactions.csv",
+            mime="text/csv",
+            help="Download current filtered dataset as CSV"
+        )
 
     with tabs[2]:
+        st.markdown("### Machine Learning Insights")
+        
+        analysis_type = st.radio(
+            "Select Analysis Type",
+            ["Transaction Prediction", "Category Prediction"],
+            key="ml_analysis_type"
+        )
+        
+        if analysis_type == "Transaction Prediction":
+            st.info("""
+            ML-powered analysis provides:
+            - Future transaction predictions
+            - Pattern detection in historical data
+            - Trend forecasting for next 30 days
+            """)
+            
+            if st.toggle("Generate ML Insights", value=False):
+                ml_analytics = TransactionAnalytics()
+                predictions_df = ml_analytics.predict_trend(filtered_df, cols)
+                st.line_chart(predictions_df.set_index('date')['predicted_amount'])
+                st.caption("Predicted transaction amounts for next 30 days")
+                
+        else:
+            st.info("""
+            Category Prediction:
+            - Uses transaction descriptions to predict categories
+            - Learns from existing categorized transactions
+            - Helps maintain consistent categorization
+            """)
+            
+            description = st.text_input("Enter transaction description")
+            if description:
+                ml_analytics = TransactionAnalytics()
+                vectorizer, model = ml_analytics.suggest_categories(filtered_df, cols)
+                if vectorizer and model:
+                    features = vectorizer.transform([description])
+                    prediction = model.predict(features)[0]
+                    confidence = model.predict_proba(features).max()
+                    st.success(f"Predicted Category: {prediction} (Confidence: {confidence:.2%})")
+
+    with tabs[3]:
         st.markdown("### Advanced Anomaly Detection")
         method = st.selectbox(
             "Select Analysis Method", 
@@ -170,11 +214,11 @@ def main() -> None:
             anomalies = ml_analytics.detect_complex_anomalies(filtered_df, cols, contamination=contamination, random_state=random_state)
             st.line_chart(anomalies.set_index('timestamp')[['amount', 'anomaly_score']])
             st.caption("""
-            Chart shows transaction amounts (blue) and anomaly scores (orange).
+            Chart shows transaction amounts (light blue) and anomaly scores (dark blue).
             Lower scores indicate more unusual transactions.
             Hover over points to see exact values.
             """)
-            st.dataframe(anomalies[anomalies['is_anomaly']].sort_values('anomaly_score'))
+            st.dataframe(anomalies[anomalies['is_anomaly']].sort_values('anomaly_score'), width="stretch")
             st.caption("""
             Transactions are sorted by anomaly score (most unusual first).
             Review these carefully - they deviate most from normal patterns.
@@ -216,7 +260,7 @@ def main() -> None:
                         
                         if anomalies_df is not None and not anomalies_df.empty:
                             st.success(f"Detected {summary['num_anomalies']} outliers out of {summary['num_samples']} samples")
-                            st.dataframe(anomalies_df.head(100), use_container_width=True)
+                            st.dataframe(anomalies_df.head(100), width="stretch")
                             st.caption("Tip: Large Z-scores indicate more extreme values. Positive scores are above mean, negative below.")
                         else:
                             st.info("No outliers detected with current threshold.")
@@ -225,7 +269,7 @@ def main() -> None:
                 else:
                     st.error("Amount column not found in the data")
 
-    with tabs[3]:
+    with tabs[4]:
         st.markdown("### AI Analysis Assistant")
         st.info("""
         Natural language interface to analyze your data.
@@ -236,7 +280,7 @@ def main() -> None:
         - Unusual patterns
         """)
         bot = InsightBot(filtered_df, cols)
-        user_query = st.chat_input("Type help to undesrstand commands")
+        user_query = st.chat_input("Type help to understand commands")
         if user_query:
             for role, content in bot.ask(user_query):
                 st.chat_message(role).write(content)

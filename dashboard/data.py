@@ -75,50 +75,58 @@ def infer_columns(df: pd.DataFrame) -> Dict[str, Any]:
     return columns
 
 
-def filter_dataframe(df: pd.DataFrame, cols: Dict[str, Any], filters: Dict[str, Any]) -> pd.DataFrame:
-    output = df.copy()
-    ts_col = cols.get("timestamp")
-    amt_col = cols.get("amount")
-
-    if ts_col and filters.get("date_range") is not None:
-        dr = filters["date_range"]
-        if isinstance(dr, (list, tuple)) and len(dr) == 2:
-            start, end = dr
-            if start is not None:
-                output = output[output[ts_col] >= pd.to_datetime(start)]
-            if end is not None:
-                output = output[output[ts_col] < pd.to_datetime(end) + pd.Timedelta(days=1)]
-
-    if amt_col and (filters.get("min_amount") is not None or filters.get("max_amount") is not None):
-        min_amt = filters.get("min_amount")
-        max_amt = filters.get("max_amount")
-        if min_amt is not None:
-            output = output[output[amt_col] >= float(min_amt)]
-        if max_amt is not None:
-            output = output[output[amt_col] <= float(max_amt)]
-
-    for cat_col in [
-        c
-        for c in [
-            cols.get("category"),
-            cols.get("merchant"),
-            cols.get("payment_method"),
-            cols.get("account_type"),
-            cols.get("transaction_type"),
+def filter_dataframe(df: pd.DataFrame, cols: Dict[str, str], filters: Dict[str, Any]) -> pd.DataFrame:
+    filtered = df.copy()
+    
+    # Date range filter
+    if 'date_range' in filters and isinstance(filters['date_range'], tuple):
+        start_date, end_date = filters['date_range']
+        filtered[cols['timestamp']] = pd.to_datetime(filtered[cols['timestamp']])
+        mask = (
+            (filtered[cols['timestamp']].dt.date >= start_date) & 
+            (filtered[cols['timestamp']].dt.date <= end_date)
+        )
+        filtered = filtered[mask]
+    
+    # Amount range filter
+    if 'amount_range' in filters and isinstance(filters['amount_range'], tuple):
+        min_amt, max_amt = filters['amount_range']
+        filtered = filtered[
+            (filtered[cols['amount']] >= min_amt) & 
+            (filtered[cols['amount']] <= max_amt)
         ]
-        if c
-    ]:
-        selected = filters.get(f"sel_{cat_col}")
-        if selected:
-            output = output[output[cat_col].isin(selected)]
-
-    # Text contains filter
-    desc_col = cols.get("description")
-    if desc_col and filters.get("text_search"):
-        needle = str(filters["text_search"]).strip()
-        if needle:
-            output = output[output[desc_col].astype(str).str.contains(needle, case=False, na=False)]
-
-    return output
+    
+    # Category filter
+    if 'categories' in filters and filters['categories']:
+        filtered = filtered[filtered[cols['category']].isin(filters['categories'])]
+    
+    # Merchant filter
+    if 'merchants' in filters and filters['merchants']:
+        filtered = filtered[filtered[cols['merchant']].isin(filters['merchants'])]
+    
+    # Transaction type filter
+    if 'transaction_types' in filters and filters['transaction_types']:
+        filtered = filtered[filtered[cols['transaction_type']].isin(filters['transaction_types'])]
+    
+    # Payment method filter
+    if 'payment_methods' in filters and filters['payment_methods']:
+        filtered = filtered[filtered[cols['payment_method']].isin(filters['payment_methods'])]
+    
+    # Amount direction filter
+    if 'amount_direction' in filters:
+        if filters['amount_direction'] == 'Positive Only':
+            filtered = filtered[filtered[cols['amount']] > 0]
+        elif filters['amount_direction'] == 'Negative Only':
+            filtered = filtered[filtered[cols['amount']] < 0]
+    
+    # Text search in description
+    if 'text_search' in filters and filters['text_search']:
+        search_text = filters['text_search'].lower()
+        if cols.get('description') in filtered.columns:
+            filtered = filtered[
+                filtered[cols['description']].str.lower().fillna('').str.contains(search_text)
+            ]
+    
+    return filtered
 
 
