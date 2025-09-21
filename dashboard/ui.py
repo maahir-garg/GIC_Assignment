@@ -3,9 +3,8 @@ from __future__ import annotations
 from typing import Dict, Any
 import pandas as pd
 import streamlit as st
-import altair as alt
 from typing import Dict
-from . import viz, analytics, data
+from . import viz
 
 
 def inject_css() -> None:

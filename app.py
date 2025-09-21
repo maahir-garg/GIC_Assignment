@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from dashboard.data import load_transactions, infer_columns, filter_dataframe
-from dashboard.analytics import compute_kpis, detect_anomalies
+from dashboard.analytics import compute_kpis
 from dashboard.viz import (
     kpi_cards,
     time_series_chart,
