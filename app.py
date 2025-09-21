@@ -125,19 +125,6 @@ def main() -> None:
             hide_index=False
         )
         
-        # Column info with type handling
-        st.subheader("Column Information")
-        col_info = pd.DataFrame({
-            'Column': filtered_df.columns,
-            'Non-Null Count': filtered_df.count().astype(str),
-            'Dtype': filtered_df.dtypes.astype(str)
-        })
-        st.dataframe(
-            col_info,
-            use_container_width=True,
-            hide_index=False
-        )
-
         # Export options
         st.download_button(
             "📥 Download Filtered Data",
