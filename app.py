@@ -111,12 +111,33 @@ def main() -> None:
         
         # Summary statistics
         st.subheader("Summary Statistics")
-        st.dataframe(filtered_df.describe(), width="stretch")
+        st.dataframe(
+            filtered_df.describe(),
+            use_container_width=True,  # Use this instead of width="stretch"
+            hide_index=False
+        )
         
         # Data preview
         st.subheader("Raw Data Preview")
-        st.dataframe(filtered_df, width="stretch")
+        st.dataframe(
+            filtered_df,
+            use_container_width=True,
+            hide_index=False
+        )
         
+        # Column info with type handling
+        st.subheader("Column Information")
+        col_info = pd.DataFrame({
+            'Column': filtered_df.columns,
+            'Non-Null Count': filtered_df.count().astype(str),
+            'Dtype': filtered_df.dtypes.astype(str)
+        })
+        st.dataframe(
+            col_info,
+            use_container_width=True,
+            hide_index=False
+        )
+
         # Export options
         st.download_button(
             "📥 Download Filtered Data",
@@ -218,7 +239,11 @@ def main() -> None:
             Lower scores indicate more unusual transactions.
             Hover over points to see exact values.
             """)
-            st.dataframe(anomalies[anomalies['is_anomaly']].sort_values('anomaly_score'), width="stretch")
+            st.dataframe(
+                anomalies[anomalies['is_anomaly']].sort_values('anomaly_score'),
+                use_container_width=True,
+                hide_index=False
+            )
             st.caption("""
             Transactions are sorted by anomaly score (most unusual first).
             Review these carefully - they deviate most from normal patterns.
@@ -260,7 +285,11 @@ def main() -> None:
                         
                         if anomalies_df is not None and not anomalies_df.empty:
                             st.success(f"Detected {summary['num_anomalies']} outliers out of {summary['num_samples']} samples")
-                            st.dataframe(anomalies_df.head(100), width="stretch")
+                            st.dataframe(
+                                anomalies_df.head(100),
+                                use_container_width=True,
+                                hide_index=False
+                            )
                             st.caption("Tip: Large Z-scores indicate more extreme values. Positive scores are above mean, negative below.")
                         else:
                             st.info("No outliers detected with current threshold.")
