@@ -181,50 +181,49 @@ def main() -> None:
             """)
 
         else:
-            st.markdown("### Outlier Detection")
+            st.markdown("### Statistical Outlier Detection")
             st.info("""
-            🔍 Anomaly Detection Tools
+            📊 Statistical Anomaly Detection
             
-            This feature helps identify unusual transactions using two methods:
-            1. Isolation Forest: Machine learning approach that isolates outliers through random partitioning
-            2. Z-Score Method: Statistical approach that flags values far from the mean
-            
-            The algorithm (Isolation Forest) works by:
-            1. Creating decision trees to isolate transactions
-            2. Transactions requiring fewer decisions to isolate are more likely to be anomalies
-            3. Scoring based on both amount and temporal patterns
-            4. Providing an anomaly score (0-1) for each transaction
+            This method uses standard statistical approaches to identify outliers:
+            - Z-Score Method: Flags values that deviate significantly from the mean
+            - Uses 3 standard deviations as the threshold
+            - Simple but effective for amount-based anomalies
+            - Best for normally distributed transaction amounts
             """)
-            method = st.selectbox("Method", ["Isolation Forest", "Z-Score"], index=0, help="Choose algorithm for anomaly detection")
-            with st.expander("Configure anomaly detection", expanded=False):
-                contamination = st.slider("Expected proportion of anomalies", min_value=0.01, max_value=0.20, value=0.05, step=0.01)
-                random_state = st.number_input("Random state", value=42, step=1)
+            
+            with st.expander("Configure Detection", expanded=False):
+                z_threshold = st.slider(
+                    "Z-Score threshold",
+                    min_value=2.0,
+                    max_value=4.0,
+                    value=3.0,
+                    step=0.1,
+                    help="Number of standard deviations from mean"
+                )
 
-            if st.toggle("Run anomaly detection", value=False, help="Toggle to run detection"):
-                if method == "Isolation Forest":
-                    anomalies_df, summary = detect_anomalies(filtered_df, cols, contamination=contamination, random_state=int(random_state))
-                    st.caption("Isolation Forest isolates points via random splits; points isolated with fewer splits get lower scores and are flagged as anomalies.")
-                else:
-                    # Simple robust z-score on amount
-                    import numpy as np
-                    amt_col = cols.get("amount")
-                    if amt_col and amt_col in filtered_df:
-                        s = pd.to_numeric(filtered_df[amt_col], errors="coerce").dropna()
-                        if not s.empty:
-                            z = (s - s.mean()) / (s.std() if s.std() else 1)
-                            mask = z.abs() > 3
-                            anomalies_df = filtered_df.loc[s.index[mask]].assign(z_score=z[mask])
-                            summary = {"num_anomalies": int(mask.sum()), "num_samples": int(s.shape[0])}
+            if st.toggle("Run Detection", value=False, help="Toggle to run detection"):
+                # Simple robust z-score on amount
+                import numpy as np
+                amt_col = cols.get("amount")
+                if amt_col and amt_col in filtered_df:
+                    s = pd.to_numeric(filtered_df[amt_col], errors="coerce").dropna()
+                    if not s.empty:
+                        z = (s - s.mean()) / (s.std() if s.std() else 1)
+                        mask = z.abs() > z_threshold
+                        anomalies_df = filtered_df.loc[s.index[mask]].assign(z_score=z[mask])
+                        summary = {"num_anomalies": int(mask.sum()), "num_samples": int(s.shape[0])}
+                        
+                        if anomalies_df is not None and not anomalies_df.empty:
+                            st.success(f"Detected {summary['num_anomalies']} outliers out of {summary['num_samples']} samples")
+                            st.dataframe(anomalies_df.head(100), use_container_width=True)
+                            st.caption("Tip: Large Z-scores indicate more extreme values. Positive scores are above mean, negative below.")
                         else:
-                            anomalies_df, summary = None, {"num_anomalies": 0, "num_samples": 0}
+                            st.info("No outliers detected with current threshold.")
                     else:
-                        anomalies_df, summary = None, {"num_anomalies": 0, "num_samples": 0}
-                if anomalies_df is not None and not anomalies_df.empty:
-                    st.success(f"Detected {summary['num_anomalies']} anomalies out of {summary['num_samples']} samples")
-                    st.dataframe(anomalies_df.head(100), use_container_width=True)
-                    st.caption("Tip: Filter by merchant/category/time to contextualize anomalies. Large positive amounts may be refunds/reversals; large negatives might be one-offs or splits.")
+                        st.warning("No numeric data available for analysis")
                 else:
-                    st.info("No anomalies detected or insufficient data for detection.")
+                    st.error("Amount column not found in the data")
 
     with tabs[3]:
         st.markdown("### AI Analysis Assistant")
@@ -242,17 +241,6 @@ def main() -> None:
             for role, content in bot.ask(user_query):
                 st.chat_message(role).write(content)
 
-    # Add footer with version and help
-    # st.markdown("---")
-    # st.markdown("""
-    # <div style='text-align: center'>
-    #     <p>Financial Analysis Dashboard v1.0 | <a href='#'>Documentation</a> | <a href='#'>Support</a></p>
-    # </div>
-    # """, unsafe_allow_html=True)
-
-
-# if __name__ == "__main__":
-#     main()
 
 
 if __name__ == "__main__":
