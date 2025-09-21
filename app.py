@@ -14,13 +14,13 @@ from dashboard.viz import (
     stacked_daily_by_type,
     payment_method_donut,
     merchant_analysis,
-    numeric_correlation_heatmap,
     monthly_seasonality,
         inflow_outflow_monthly,
         avg_ticket_by_merchant,
 )
 from dashboard.ui import inject_css, sidebar_filters, fun_header
 from dashboard.chatbot import InsightBot
+from dashboard.ml import TransactionAnalytics
 
 
 APP_TITLE = "GIC Transaction Galaxy"
@@ -53,22 +53,31 @@ def main() -> None:
     # Apply filters
     filtered_df = filter_dataframe(df, cols, filters)
 
-    # KPI Row
-    kpis = compute_kpis(filtered_df, cols)
-    kpi_cards(kpis)
+    # Overview section
+    st.markdown("## Transaction Analysis Dashboard")
+    st.markdown("Analyze your financial data using advanced visualizations and machine learning.")
 
-    # Tabs for visualizations and anomalies
-    tabs = st.tabs(["Visualizations", "Data", "Anomalies", "Chatbot"])
+    # Main navigation
+    tabs = st.tabs([
+        "📊 Overview & Trends",
+        "🤖 ML Insights",
+        "🔍 Anomaly Detection",
+        "💬 Chatbot Assistant"
+    ])
 
     with tabs[0]:
-        st.markdown("### Visual Explorations")
+        st.markdown("### Key Metrics & Trends")
+        kpis = compute_kpis(filtered_df, cols)
+        kpi_cards(kpis)
         
-        st.info("📈 Time Series Analysis: Shows transaction patterns over time. Helps identify seasonal trends, unusual spikes, and overall volume changes.")
+        st.markdown("### Time Series Analysis")
+        st.info("Track transaction patterns and seasonal trends over time")
         time_series_chart(filtered_df, cols)
         
         col1, col2 = st.columns(2)
         with col1:
-            st.info("📊 Category Distribution: Displays spending across different categories. Useful for understanding where money is being allocated.")
+            st.markdown("### Category Analysis")
+            st.info("Distribution of transactions across categories")
             category_bar_chart(filtered_df, cols)
         with col2:
             st.info("🕒 Activity Heatmap: Shows transaction frequency by weekday and hour. Helps identify peak activity periods and patterns.")
@@ -98,75 +107,134 @@ def main() -> None:
         avg_ticket_by_merchant(filtered_df, cols)
 
     with tabs[1]:
-        st.markdown("### Data Preview & Export")
-        st.info("📋 Raw Data View: Examine individual transactions and export filtered results for further analysis.")
-        st.dataframe(filtered_df.head(500), use_container_width=True)
-        csv_bytes = filtered_df.to_csv(index=False).encode("utf-8")
-        st.download_button("Download filtered CSV", data=csv_bytes, file_name="filtered_transactions.csv", mime="text/csv")
+        st.markdown("### Machine Learning Insights")
+        st.info("""
+        ML-powered analysis provides:
+        - Future transaction predictions
+        - Pattern detection in historical data
+        - Trend forecasting for next 30 days
+        """)
+        
+        if st.toggle("Generate ML Insights", value=False):
+            ml_analytics = TransactionAnalytics()
+            
+            # Trend prediction
+            predictions_df = ml_analytics.predict_trend(filtered_df, cols)
+            st.line_chart(predictions_df.set_index('date')['predicted_amount'])
+            st.caption("Predicted transaction amounts for next 30 days")
 
     with tabs[2]:
-        st.markdown("### Outlier Detection")
-        st.info("""
-        🔍 Anomaly Detection Tools
+        st.markdown("### Advanced Anomaly Detection")
+        method = st.selectbox(
+            "Select Analysis Method", 
+            ["ML-Enhanced Detection", "Statistical Detection"],
+            help="Choose between ML (multiple features) or statistical (amount-based) approach",
+            key="anomaly_detection_method"
+        )
         
-        This feature helps identify unusual transactions using two methods:
-        1. Isolation Forest: Machine learning approach that isolates outliers through random partitioning
-        2. Z-Score Method: Statistical approach that flags values far from the mean
-        
-        Use this to:
-        - Find potentially fraudulent transactions
-        - Identify data entry errors
-        - Spot unusual spending patterns
-        """)
-        method = st.selectbox("Method", ["Isolation Forest", "Z-Score"], index=0, help="Choose algorithm for anomaly detection")
-        with st.expander("Configure anomaly detection", expanded=False):
-            contamination = st.slider("Expected proportion of anomalies", min_value=0.01, max_value=0.20, value=0.05, step=0.01)
-            random_state = st.number_input("Random state", value=42, step=1)
+        if method == "ML-Enhanced Detection":
+            st.info("""
+            🔍 ML-Enhanced Anomaly Detection
+            
+            This advanced detection method uses multiple features to identify unusual transactions:
+            - Transaction timing patterns (hour, day, month)
+            - Amount relative to historical patterns
+            - Seasonal and cyclic variations
+            - Combined behavior scoring
+            
+            Understanding Anomaly Scores:
+            - Score Range: -1 (most anomalous) to 1 (most normal)
+            - Scores below 0 are considered anomalies
+            - Lower scores indicate more unusual transactions
+            - Scores consider both amount and timing patterns
+            - The model learns what's "normal" from your data
+            """)
+            
+            ml_analytics = TransactionAnalytics()
+            with st.expander("Configure ML Detection", expanded=False):
+                contamination = st.slider(
+                    "Expected proportion of anomalies",
+                    min_value=0.01,
+                    max_value=0.20,
+                    value=0.05,
+                    step=0.01,
+                    key="ml_anomaly_contamination"  # Add unique key
+                )
+                random_state = st.number_input(
+                    "Random state",
+                    value=42,
+                    step=1,
+                    key="ml_random_state"  # Add unique key
+                )
 
-        if st.toggle("Run anomaly detection", value=False, help="Toggle to run detection"):
-            if method == "Isolation Forest":
-                anomalies_df, summary = detect_anomalies(filtered_df, cols, contamination=contamination, random_state=int(random_state))
-                st.caption("Isolation Forest isolates points via random splits; points isolated with fewer splits get lower scores and are flagged as anomalies.")
-            else:
-                # Simple robust z-score on amount
-                import numpy as np
-                amt_col = cols.get("amount")
-                if amt_col and amt_col in filtered_df:
-                    s = pd.to_numeric(filtered_df[amt_col], errors="coerce").dropna()
-                    if not s.empty:
-                        z = (s - s.mean()) / (s.std() if s.std() else 1)
-                        mask = z.abs() > 3
-                        anomalies_df = filtered_df.loc[s.index[mask]].assign(z_score=z[mask])
-                        summary = {"num_anomalies": int(mask.sum()), "num_samples": int(s.shape[0])}
+            anomalies = ml_analytics.detect_complex_anomalies(filtered_df, cols, contamination=contamination, random_state=random_state)
+            st.line_chart(anomalies.set_index('timestamp')[['amount', 'anomaly_score']])
+            st.caption("""
+            Chart shows transaction amounts (blue) and anomaly scores (orange).
+            Lower scores indicate more unusual transactions.
+            Hover over points to see exact values.
+            """)
+            st.dataframe(anomalies[anomalies['is_anomaly']].sort_values('anomaly_score'))
+            st.caption("""
+            Transactions are sorted by anomaly score (most unusual first).
+            Review these carefully - they deviate most from normal patterns.
+            """)
+
+        else:
+            st.markdown("### Outlier Detection")
+            st.info("""
+            🔍 Anomaly Detection Tools
+            
+            This feature helps identify unusual transactions using two methods:
+            1. Isolation Forest: Machine learning approach that isolates outliers through random partitioning
+            2. Z-Score Method: Statistical approach that flags values far from the mean
+            
+            The algorithm (Isolation Forest) works by:
+            1. Creating decision trees to isolate transactions
+            2. Transactions requiring fewer decisions to isolate are more likely to be anomalies
+            3. Scoring based on both amount and temporal patterns
+            4. Providing an anomaly score (0-1) for each transaction
+            """)
+            method = st.selectbox("Method", ["Isolation Forest", "Z-Score"], index=0, help="Choose algorithm for anomaly detection")
+            with st.expander("Configure anomaly detection", expanded=False):
+                contamination = st.slider("Expected proportion of anomalies", min_value=0.01, max_value=0.20, value=0.05, step=0.01)
+                random_state = st.number_input("Random state", value=42, step=1)
+
+            if st.toggle("Run anomaly detection", value=False, help="Toggle to run detection"):
+                if method == "Isolation Forest":
+                    anomalies_df, summary = detect_anomalies(filtered_df, cols, contamination=contamination, random_state=int(random_state))
+                    st.caption("Isolation Forest isolates points via random splits; points isolated with fewer splits get lower scores and are flagged as anomalies.")
+                else:
+                    # Simple robust z-score on amount
+                    import numpy as np
+                    amt_col = cols.get("amount")
+                    if amt_col and amt_col in filtered_df:
+                        s = pd.to_numeric(filtered_df[amt_col], errors="coerce").dropna()
+                        if not s.empty:
+                            z = (s - s.mean()) / (s.std() if s.std() else 1)
+                            mask = z.abs() > 3
+                            anomalies_df = filtered_df.loc[s.index[mask]].assign(z_score=z[mask])
+                            summary = {"num_anomalies": int(mask.sum()), "num_samples": int(s.shape[0])}
+                        else:
+                            anomalies_df, summary = None, {"num_anomalies": 0, "num_samples": 0}
                     else:
                         anomalies_df, summary = None, {"num_anomalies": 0, "num_samples": 0}
+                if anomalies_df is not None and not anomalies_df.empty:
+                    st.success(f"Detected {summary['num_anomalies']} anomalies out of {summary['num_samples']} samples")
+                    st.dataframe(anomalies_df.head(100), use_container_width=True)
+                    st.caption("Tip: Filter by merchant/category/time to contextualize anomalies. Large positive amounts may be refunds/reversals; large negatives might be one-offs or splits.")
                 else:
-                    anomalies_df, summary = None, {"num_anomalies": 0, "num_samples": 0}
-            if anomalies_df is not None and not anomalies_df.empty:
-                st.success(f"Detected {summary['num_anomalies']} anomalies out of {summary['num_samples']} samples")
-                st.dataframe(anomalies_df.head(100), use_container_width=True)
-                st.caption("Tip: Filter by merchant/category/time to contextualize anomalies. Large positive amounts may be refunds/reversals; large negatives might be one-offs or splits.")
-            else:
-                st.info("No anomalies detected or insufficient data for detection.")
+                    st.info("No anomalies detected or insufficient data for detection.")
 
     with tabs[3]:
-        st.markdown("### Insight Chatbot")
+        st.markdown("### AI Analysis Assistant")
         st.info("""
-        🤖 Interactive Analysis Assistant
-        
-        Available Commands:
-        - 'total': Get total transaction amount
-        - 'average': View average transaction metrics
-        - 'top': See top categories/merchants
-        - 'trend': Analyze transaction trends
-        - 'peak': Find peak transaction times
-        - 'summary': Get comprehensive analysis
-        - 'help': Show all available commands
-        
-        Tips:
-        - Use filters first to analyze specific data segments
-        - Be specific in your questions
-        - Try combining commands with time periods
+        Natural language interface to analyze your data.
+        Try asking about:
+        - Transaction trends
+        - Category summaries
+        - Peak periods
+        - Unusual patterns
         """)
         bot = InsightBot(filtered_df, cols)
         user_query = st.chat_input("Type help to undesrstand commands")
@@ -174,7 +242,17 @@ def main() -> None:
             for role, content in bot.ask(user_query):
                 st.chat_message(role).write(content)
 
-    # Removed celebrate button per request
+    # Add footer with version and help
+    # st.markdown("---")
+    # st.markdown("""
+    # <div style='text-align: center'>
+    #     <p>Financial Analysis Dashboard v1.0 | <a href='#'>Documentation</a> | <a href='#'>Support</a></p>
+    # </div>
+    # """, unsafe_allow_html=True)
+
+
+# if __name__ == "__main__":
+#     main()
 
 
 if __name__ == "__main__":

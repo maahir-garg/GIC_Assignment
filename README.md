@@ -2,31 +2,64 @@
 
 A professional-grade interactive dashboard for analyzing financial transaction data, built with Python and Streamlit.
 
-## Overview
-This dashboard provides comprehensive analysis and visualization of financial transaction data, designed to meet enterprise-grade requirements for data exploration and analysis.
+## Core Features
 
-## Key Features
-### Data Analysis
-- Interactive date and amount range filters
-- Real-time transaction category filtering
-- Comprehensive KPI tracking
-  - Transaction totals
-  - Average amounts
-  - Transaction counts
+### 1. Data Analysis & Visualization
+- **Time Series Analysis**
+  - Transaction patterns and trends
+  - Seasonal variations
+  - Volume changes visualization
+
+- **Transaction Categories**
+  - Category distribution
+  - Merchant analysis
+  - Payment method breakdown
+
+- **Activity Patterns**
+  - Weekday-hour heatmaps
+  - Monthly seasonality
   - Peak activity periods
 
-### Visualizations
-- Time series analysis
-- Category distribution charts
-- Weekday-hour activity heatmaps
-- Amount distribution analysis
-- Merchant analysis
+### 2. Machine Learning Features
+- **Predictive Analytics**
+  - Transaction trend forecasting
+  - 30-day amount predictions
+  - Historical pattern analysis
 
-### Advanced Analytics
-- Anomaly detection using IsolationForest
-- Configurable detection parameters
-- Interactive data filtering
-- Chatbot
+- **Advanced Anomaly Detection**
+  - Multi-feature ML Detection
+    - Transaction timing analysis
+    - Amount pattern recognition
+    - Seasonal variation detection
+    - Combined behavior scoring
+    - Anomaly Score Interpretation:
+      - Scores range from -1 to 1
+      - Negative scores indicate anomalies
+      - Lower scores = more unusual
+      - Considers multiple patterns simultaneously
+  - Statistical Detection (Z-Score)
+  - Configurable sensitivity
+
+- **Category Prediction**
+  - ML-based category suggestions
+  - Description-based classification
+  - Training on existing data
+
+### 3. Interactive Features
+- **Dynamic Filtering**
+  - Date range selection
+  - Amount range filters
+  - Category/Merchant filters
+  
+- **Data Export**
+  - Filtered data download
+  - Custom CSV export
+  - Analysis results export
+
+- **Insight Chatbot**
+  - Natural language queries
+  - Statistical summaries
+  - Trend analysis
 
 ## Installation
 
@@ -66,11 +99,32 @@ The system automatically maps common column names:
 - Categories: 'category', 'type', 'transaction_type'
 - Merchant: 'merchant', 'vendor', 'seller'
 
-## Technical Notes
-- Minimum of 10 transactions required for anomaly detection
-- Supports both positive and negative transaction amounts
-- Auto-handles missing values and data type conversion
-- Built with Streamlit and Pandas
+## Technical Details
+- Python 3.8+
+- Key Dependencies:
+  - Streamlit
+  - Pandas
+  - Scikit-learn
+  - Plotly/Altair
+  - NumPy
+
+## Usage Guide
+1. **Data Loading**
+   - Place CSV file in application directory
+   - Automatic column mapping
+   - Data validation checks
+
+2. **Analysis Flow**
+   - Start with overview metrics
+   - Use filters to segment data
+   - Apply ML analysis as needed
+   - Export results
+
+3. **Best Practices**
+   - Filter data before ML analysis
+   - Review anomalies in context
+   - Use chatbot for quick insights
+   - Export findings for reporting
 
 ## Performance Considerations
 - Optimized for datasets up to 100,000 rows

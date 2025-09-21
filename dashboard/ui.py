@@ -44,18 +44,23 @@ def sidebar_filters(df: pd.DataFrame, cols: Dict[str, Any]) -> Dict[str, Any]:
 
     st.subheader("Filters")
 
+    # Generate a unique prefix for all keys in this instance
+    key_prefix = f"filter_{id(df)}"  # Use object id to ensure uniqueness
+
     if ts_col and ts_col in df:
         ts = pd.to_datetime(df[ts_col], errors="coerce").dropna()
         if not ts.empty:
             min_date = ts.min().date()
             max_date = ts.max().date()
-            dr = st.date_input("Date Range", value=(min_date, max_date))
-            # Streamlit returns a single date when using a single date picker; guard for that
+            dr = st.date_input(
+                "Date Range",
+                value=(min_date, max_date),
+                key=f"{key_prefix}_date_range"
+            )
             if isinstance(dr, tuple) or isinstance(dr, list):
                 if len(dr) == 2:
                     filters["date_range"] = (dr[0], dr[1])
             else:
-                # Fallback to full range
                 filters["date_range"] = (min_date, max_date)
 
     if amt_col and amt_col in df:
@@ -67,6 +72,7 @@ def sidebar_filters(df: pd.DataFrame, cols: Dict[str, Any]) -> Dict[str, Any]:
                 min_value=min_v,
                 max_value=max_v,
                 value=(min_v, max_v),
+                key=f"{key_prefix}_amount_range"
             )
 
     for cat_col in [
@@ -79,12 +85,18 @@ def sidebar_filters(df: pd.DataFrame, cols: Dict[str, Any]) -> Dict[str, Any]:
         ] if c and c in df
     ]:
         choices = sorted([str(x) for x in df[cat_col].dropna().unique()])
-        filters[f"sel_{cat_col}"] = st.multiselect(f"{cat_col.title()}", choices)
+        filters[f"sel_{cat_col}"] = st.multiselect(
+            f"{cat_col.title()}", 
+            choices,
+            key=f"{key_prefix}_{cat_col}"
+        )
 
-    # Text search in description if available
     desc_col = cols.get("description")
     if desc_col and desc_col in df:
-        filters["text_search"] = st.text_input("Search description contains")
+        filters["text_search"] = st.text_input(
+            "Search description contains",
+            key=f"{key_prefix}_description"
+        )
 
     return filters
 
